@@ -1,5 +1,5 @@
 ;(function () {
-
+	
   var mk = {};
 
   mk.callbacks = {
@@ -404,10 +404,47 @@
   };
 
   mk.controllers.Multiplayer.prototype._addHandlers = function () {
+
     var pressed = {},
       self = this,
       f1 = this.fighters[0],
       f2 = this.fighters[1];
+
+  var counter = 0;
+  setInterval(function() {
+    counter += 1;
+    console.log("AI loop: " + counter);
+
+    //console.log("Opponent health: ", f1.getLife());
+    //console.log("Self health: ", f2.getLife());
+
+    var heuristic = f2.getLife() - f1.getLife();
+    console.log("Heuristic: ", heuristic);
+
+    var key_possibilitys = [
+      39,
+      37,
+      38,
+      40,
+      17,
+      80,
+      219,
+      221,
+      220];
+
+    var key = key_possibilitys[Math.floor(Math.random() * 8)];
+
+    console.log(key);
+
+    if (Math.random() >= 0.5) {
+      pressed[key] = true;
+    } else {
+      delete pressed[key];
+    }
+
+    move = self._getMove(pressed, mk.controllers.keys.p2, 1);
+    self._moveFighter(f2, move);
+  }, 1000);
 
     document.addEventListener('keydown', function (e) {
       pressed[e.keyCode] = true;
