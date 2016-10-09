@@ -410,18 +410,17 @@
       f1 = this.fighters[0],
       f2 = this.fighters[1];
 
+//AI variables
   var counter = 0;
-  setInterval(function() {
-    counter += 1;
-    console.log("AI loop: " + counter);
 
-    //console.log("Opponent health: ", f1.getLife());
-    //console.log("Self health: ", f2.getLife());
+  var lastHeuristic = 0;
+  var lastKey = 0;
+  var gameState = {};
 
-    var heuristic = f2.getLife() - f1.getLife();
-    console.log("Heuristic: ", heuristic);
+  var gameStateData = {};
 
     var key_possibilitys = [
+      0,
       39,
       37,
       38,
@@ -432,19 +431,100 @@
       221,
       220];
 
-    var key = key_possibilitys[Math.floor(Math.random() * 8)];
+  setInterval(function() {
+    counter += 1;
+    console.log("AI loop: " + counter);
 
-    console.log(key);
+    var heuristic = f2.getLife() - f1.getLife(); //heuristic of current state
+    console.log("  heuristic: ", heuristic);
 
-    if (Math.random() >= 0.5) {
-      pressed[key] = true;
-    } else {
-      delete pressed[key];
+    var deltaHeuristic = lastHeuristic - heuristic; //change in heuristic between loop cycles
+    console.log("  delta-heuristic: ", deltaHeuristic);
+
+    //update data collected
+    console.log("updating state ", gameState);
+    if (gameStateData[gameState] === undefined) { //if data does not exist, create entry
+      gameStateData[gameState] = {};
     }
+
+    if (gameStateData[gameState][lastKey] === undefined) {
+      gameStateData[gameState][lastKey] = {};
+      gameStateData[gameState][lastKey]["value"] = deltaHeuristic;
+      gameStateData[gameState][lastKey]["count"] = 1;
+    } else {
+      gameStateData[gameState][lastKey]["value"] = ((gameStateData[gameState][lastKey]["value"] * gameStateData[gameState][lastKey]["count"]) + deltaHeuristic) / (gameStateData[gameState][lastKey]["count"] + 1);
+      gameStateData[gameState][lastKey]["count"] += 1;
+    }
+
+    //end updating data
+
+    lastHeuristic = heuristic;
+
+    gameState = "p1:" + f1._currentMove.type + "-p2:" + f1._currentMove.type + "-dx:" + ((f2.getX() - f1.getX()) / 10);
+    console.log("  state: ", gameState);
+
+    var epsilon = 0.1; //TODO
+    if (gameStateData[gameState] === undefined) {
+      console.log("  no data exists on state");
+      epsilon = 1;
+    }
+
+    var key = 0; //move to be player
+    if (Math.random() <= epsilon) { //will explore, take random action
+      console.log("  exploring...");
+      key = key_possibilitys[Math.floor(Math.random() * key_possibilitys.length)];
+    } else {
+      console.log("  using gathered data on gamestate:", gameStateData[gameState]);
+      bestMove = (gameStateData[gameState][0] !== undefined) ? gameStateData[gameState][0]["value"] : -100;
+      if (gameStateData[gameState][39] !== undefined && gameStateData[gameState][39]["value"] > bestMove) {
+        bestMove = gameStateData[gameState][39]["value"];
+        key = 39;
+      } else if (gameStateData[gameState][37] !== undefined && gameStateData[gameState][37]["value"] > bestMove) {
+        bestMove = gameStateData[gameState][37]["value"];
+        key = 37;
+      } else if (gameStateData[gameState][38] !== undefined && gameStateData[gameState][38]["value"] > bestMove) {
+        bestMove = gameStateData[gameState][38]["value"];
+        key = 38;
+      } else if (gameStateData[gameState][40] !== undefined && gameStateData[gameState][40]["value"] > bestMove) {
+        bestMove = gameStateData[gameState][40]["value"];
+        key = 40;
+      } else if (gameStateData[gameState][17] !== undefined && gameStateData[gameState][17]["value"] > bestMove) {
+        bestMove = gameStateData[gameState][17]["value"];
+        key = 17;
+      } else if (gameStateData[gameState][80] !== undefined && gameStateData[gameState][80]["value"] > bestMove) {
+        bestMove = gameStateData[gameState][80]["value"];
+        key = 80;
+      } else if (gameStateData[gameState][219] !== undefined && gameStateData[gameState][219]["value"] > bestMove) {
+        bestMove = gameStateData[gameState][219]["value"];
+        key = 219;
+      } else if (gameStateData[gameState][221] !== undefined && gameStateData[gameState][221]["value"] > bestMove) {
+        bestMove = gameStateData[gameState][221]["value"];
+        key = 221;
+      } else if (gameStateData[gameState][220] !== undefined && gameStateData[gameState][220]["value"] > bestMove) {
+        bestMove = gameStateData[gameState][220]["value"];
+        key = 220;
+      }
+    }
+    lastKey = key;
+
+    console.log("  pressed key: ", key);
+    pressed[key] = true;
 
     move = self._getMove(pressed, mk.controllers.keys.p2, 1);
     self._moveFighter(f2, move);
-  }, 1000);
+
+    delete pressed[0];
+    delete pressed[39];
+    delete pressed[37];
+    delete pressed[38];
+    delete pressed[40];
+    delete pressed[17];
+    delete pressed[80];
+    delete pressed[219];
+    delete pressed[221];
+    delete pressed[220];
+
+  }, 100);
 
     document.addEventListener('keydown', function (e) {
       pressed[e.keyCode] = true;
