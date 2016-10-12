@@ -505,7 +505,7 @@
         //console.log(gameStateData[gameState][i]);
         totalDataCount += gameStateData[gameState][i]["count"];
       }
-      epsilon = 1 / (1 + totalDataCount);
+      epsilon = 10 / (10 + totalDataCount);
       if (epsilon < 0.1) epsilon = 0.1;
       console.log("  epsilon: " + epsilon);
     }
