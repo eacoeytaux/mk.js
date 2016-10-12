@@ -404,6 +404,20 @@
   };
 
   mk.controllers.Multiplayer.prototype._addHandlers = function () {
+    function getCookie(cname) {
+      var name = cname + "=";
+      var ca = document.cookie.split(';');
+      for(var i = 0; i <ca.length; i++) {
+          var c = ca[i];
+          while (c.charAt(0)==' ') {
+              c = c.substring(1);
+          }
+          if (c.indexOf(name) == 0) {
+              return c.substring(name.length,c.length);
+          }
+      }
+      return "";
+    }
 
     var pressed = {},
       self = this,
@@ -411,14 +425,18 @@
       f2 = this.fighters[1];
 
 //AI variables
+  //counts AI loops - for debugging/timing
   var counter = 0;
 
+  //used to calculate data from loop to loop
   var lastHeuristic = 0;
   var lastKey = 0;
-  var gameState = {};
 
-  var gameStateData = {};
+  var gameState = {}; //current state of game
+  var gameStateData = JSON.parse(getCookie("data")); //data used to calculate next move
+  console.log("inital data:", gameStateData);
 
+  //possible options for player 2
     var key_possibilitys = [
       0,
       39,
@@ -441,32 +459,55 @@
     var deltaHeuristic = lastHeuristic - heuristic; //change in heuristic between loop cycles
     console.log("  delta-heuristic: ", deltaHeuristic);
 
+    if (f2.getLife() <= 0) {
+      console.log("player dead - no data to be gathered");
+      return;
+    }
+
     //update data collected
     console.log("updating state ", gameState);
     if (gameStateData[gameState] === undefined) { //if data does not exist, create entry
       gameStateData[gameState] = {};
     }
 
-    if (gameStateData[gameState][lastKey] === undefined) {
+    if (gameStateData[gameState][lastKey] === undefined) { //if state exists but no data for key, create key data
       gameStateData[gameState][lastKey] = {};
       gameStateData[gameState][lastKey]["value"] = deltaHeuristic;
       gameStateData[gameState][lastKey]["count"] = 1;
-    } else {
+    } else { //update data accordingly
+      //((currentValue * count) + newValue) / count+1
       gameStateData[gameState][lastKey]["value"] = ((gameStateData[gameState][lastKey]["value"] * gameStateData[gameState][lastKey]["count"]) + deltaHeuristic) / (gameStateData[gameState][lastKey]["count"] + 1);
       gameStateData[gameState][lastKey]["count"] += 1;
     }
+
+    //Save data to JSON file
+
+    var dataString = JSON.stringify(gameStateData);
+    //TODO save to cookie
+    document.cookie = "data="+dataString;
 
     //end updating data
 
     lastHeuristic = heuristic;
 
-    gameState = "p1:" + f1._currentMove.type + "-p2:" + f1._currentMove.type + "-dx:" + ((f2.getX() - f1.getX()) / 10);
+    //calculate state based on p1/p2 fighting state an positioning
+    gameState = "p1:" + f1._currentMove.type + "-p2:" + f1._currentMove.type + "-dx:" + Math.abs(Math.floor((f2.getX() - f1.getX()) / 10));
     console.log("  state: ", gameState);
 
-    var epsilon = 0.1; //TODO
-    if (gameStateData[gameState] === undefined) {
+    var epsilon; //TODO calculate epsilon based on how much data is gathered for state
+    if (gameStateData[gameState] === undefined) { //if no data exists, explore options by setting epsilon to 1
       console.log("  no data exists on state");
       epsilon = 1;
+    } else {
+      var totalDataCount = 0;
+      for (var i in gameStateData[gameState]) {
+        //console.log("i: ", i);
+        //console.log(gameStateData[gameState][i]);
+        totalDataCount += gameStateData[gameState][i]["count"];
+      }
+      epsilon = 1 / (1 + totalDataCount);
+      if (epsilon < 0.1) epsilon = 0.1;
+      console.log("  epsilon: " + epsilon);
     }
 
     var key = 0; //move to be player
@@ -474,59 +515,101 @@
       console.log("  exploring...");
       key = key_possibilitys[Math.floor(Math.random() * key_possibilitys.length)];
     } else {
+      bestKeys = [0]; //list of best option(s) available
+
       console.log("  using gathered data on gamestate:", gameStateData[gameState]);
-      bestMove = (gameStateData[gameState][0] !== undefined) ? gameStateData[gameState][0]["value"] : -100;
-      if (gameStateData[gameState][39] !== undefined && gameStateData[gameState][39]["value"] > bestMove) {
+      bestMove = (gameStateData[gameState][0] !== undefined) ? gameStateData[gameState][0]["value"] : -100; //set to value of doing nothing or minimum possible value
+
+      if (gameStateData[gameState][39] !== undefined && gameStateData[gameState][39]["value"] >= bestMove) {
+        if (bestMove == gameStateData[gameState][39]["value"]) {
+          bestKeys.push(39);
+        } else {
+          bestKeys = [39];
+        }
         bestMove = gameStateData[gameState][39]["value"];
-        key = 39;
-      } else if (gameStateData[gameState][37] !== undefined && gameStateData[gameState][37]["value"] > bestMove) {
+      } else if (gameStateData[gameState][37] !== undefined && gameStateData[gameState][37]["value"] >= bestMove) {
+        if (bestMove == gameStateData[gameState][37]["value"]) {
+          bestKeys.push(37);
+        } else {
+          bestKeys = [37];
+        }
         bestMove = gameStateData[gameState][37]["value"];
         key = 37;
-      } else if (gameStateData[gameState][38] !== undefined && gameStateData[gameState][38]["value"] > bestMove) {
+      } else if (gameStateData[gameState][38] !== undefined && gameStateData[gameState][38]["value"] >= bestMove) {
+        if (bestMove == gameStateData[gameState][38]["value"]) {
+          bestKeys.push(38);
+        } else {
+          bestKeys = [38];
+        }
         bestMove = gameStateData[gameState][38]["value"];
-        key = 38;
-      } else if (gameStateData[gameState][40] !== undefined && gameStateData[gameState][40]["value"] > bestMove) {
+      } else if (gameStateData[gameState][40] !== undefined && gameStateData[gameState][40]["value"] >= bestMove) {
+        if (bestMove == gameStateData[gameState][40]["value"]) {
+          bestKeys.push(40);
+        } else {
+          bestKeys = [40];
+        }
         bestMove = gameStateData[gameState][40]["value"];
-        key = 40;
-      } else if (gameStateData[gameState][17] !== undefined && gameStateData[gameState][17]["value"] > bestMove) {
+      } else if (gameStateData[gameState][17] !== undefined && gameStateData[gameState][17]["value"] >= bestMove) {
+        if (bestMove == gameStateData[gameState][17]["value"]) {
+          bestKeys.push(17);
+        } else {
+          bestKeys = [17];
+        }
         bestMove = gameStateData[gameState][17]["value"];
-        key = 17;
-      } else if (gameStateData[gameState][80] !== undefined && gameStateData[gameState][80]["value"] > bestMove) {
+      } else if (gameStateData[gameState][80] !== undefined && gameStateData[gameState][80]["value"] >= bestMove) {
+        if (bestMove == gameStateData[gameState][80]["value"]) {
+          bestKeys.push(80);
+        } else {
+          bestKeys = [80];
+        }
         bestMove = gameStateData[gameState][80]["value"];
-        key = 80;
-      } else if (gameStateData[gameState][219] !== undefined && gameStateData[gameState][219]["value"] > bestMove) {
+      } else if (gameStateData[gameState][219] !== undefined && gameStateData[gameState][219]["value"] >= bestMove) {
+        if (bestMove == gameStateData[gameState][219]["value"]) {
+          bestKeys.push(219);
+        } else {
+          bestKeys = [219];
+        }
         bestMove = gameStateData[gameState][219]["value"];
-        key = 219;
-      } else if (gameStateData[gameState][221] !== undefined && gameStateData[gameState][221]["value"] > bestMove) {
+      } else if (gameStateData[gameState][221] !== undefined && gameStateData[gameState][221]["value"] >= bestMove) {
+        if (bestMove == gameStateData[gameState][221]["value"]) {
+          bestKeys.push(221);
+        } else {
+          bestKeys = [221];
+        }
         bestMove = gameStateData[gameState][221]["value"];
-        key = 221;
-      } else if (gameStateData[gameState][220] !== undefined && gameStateData[gameState][220]["value"] > bestMove) {
+      } else if (gameStateData[gameState][220] !== undefined && gameStateData[gameState][220]["value"] >= bestMove) {
+        if (bestMove == gameStateData[gameState][220]["value"]) {
+          bestKeys.push(220);
+        } else {
+          bestKeys = [220];
+        }
         bestMove = gameStateData[gameState][220]["value"];
-        key = 220;
       }
+
+      key = bestKeys[Math.floor(Math.random() * bestKeys.length)]; //randomly choose one of the best options available
     }
+
     lastKey = key;
 
     console.log("  pressed key: ", key);
-    pressed[key] = true;
+    if (key != 0) {
+      pressed[key] = true;
 
-    move = self._getMove(pressed, mk.controllers.keys.p2, 1);
-    self._moveFighter(f2, move);
+      //move based on key
+      move = self._getMove(pressed, mk.controllers.keys.p2, 1);
+      self._moveFighter(f2, move);
 
-    delete pressed[0];
-    delete pressed[39];
-    delete pressed[37];
-    delete pressed[38];
-    delete pressed[40];
-    delete pressed[17];
-    delete pressed[80];
-    delete pressed[219];
-    delete pressed[221];
-    delete pressed[220];
+      //clear all keys
+      delete pressed[key];
+    }
 
   }, 100);
 
     document.addEventListener('keydown', function (e) {
+      if (e.keyCode == 81) {
+        console.log("CLEARING ALL GAME STATE DATA");
+        gameStateData = {};
+      }
       pressed[e.keyCode] = true;
       var move = self._getMove(pressed, mk.controllers.keys.p1, 0);
       self._moveFighter(f1, move);
